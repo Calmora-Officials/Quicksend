@@ -1,0 +1,556 @@
+<h1>📎 QuickSend</h1>
+<div style="font-size:13px;color:#8b94a4;margin-top:-2px;margin-bottom:8px;">
+  By Calmora
+</div>
+<style>
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:22px;
+  font-family:Arial,Helvetica,sans-serif;
+  background:linear-gradient(135deg,#eaf2ff,#f7f9ff);
+  color:#172033;
+}
+
+.card{
+  width:min(620px,100%);
+  background:#fff;
+  padding:30px;
+  border-radius:24px;
+  box-shadow:0 18px 55px rgba(20,35,65,.12);
+}
+
+h1{
+  margin:0 0 7px;
+  font-size:34px;
+}
+
+p{
+  margin:0 0 24px;
+  color:#667085;
+}
+
+label.title{
+  display:block;
+  font-weight:700;
+  margin:18px 0 8px;
+}
+
+input[type=email]{
+  width:100%;
+  padding:14px 15px;
+  border:1px solid #d8dee9;
+  border-radius:12px;
+  font-size:16px;
+  outline:none;
+}
+
+input[type=email]:focus{
+  border-color:#2563eb;
+}
+
+.drop{
+  display:block;
+  border:2px dashed #b7c1d2;
+  padding:28px 18px;
+  border-radius:16px;
+  text-align:center;
+  cursor:pointer;
+  background:#fbfcff;
+  transition:.2s;
+}
+
+.drop:hover{
+  background:#f4f7ff;
+  border-color:#2563eb;
+}
+
+.drop strong{
+  display:block;
+  font-size:17px;
+  margin-bottom:6px;
+}
+
+.drop span{
+  color:#667085;
+  font-size:14px;
+}
+
+input[type=file]{
+  display:none;
+}
+
+#files{
+  margin:14px 0;
+}
+
+.file{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  margin:7px 0;
+  border-radius:10px;
+  background:#f3f5f8;
+  font-size:14px;
+  word-break:break-all;
+}
+
+.send{
+  width:100%;
+  margin-top:8px;
+  padding:15px;
+  border:0;
+  border-radius:12px;
+  background:#2563eb;
+  color:#fff;
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+  transition:.2s;
+}
+
+.send:hover:not(:disabled){
+  background:#1d4ed8;
+}
+
+.send:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+
+#status{
+  text-align:center;
+  font-weight:700;
+  margin-top:16px;
+  min-height:20px;
+}
+
+.note{
+  text-align:center;
+  color:#8b94a4;
+  font-size:12px;
+  margin-top:15px;
+  line-height:1.5;
+}
+</style>
+</head>
+
+<body>
+
+<main class="card">
+
+<h1>📎 QuickSend</h1>
+
+<p>Send files directly to an email address.</p>
+
+<label class="title" for="email">
+  Recipient email
+</label>
+
+<input
+  id="email"
+  type="email"
+  placeholder="name@example.com"
+  autocomplete="email"
+>
+
+<label class="title">
+  Files
+</label>
+
+<label class="drop" for="picker">
+  <strong>📁 Click to choose files</strong>
+  <span>You can select multiple files</span>
+</label>
+
+<input
+  id="picker"
+  type="file"
+  multiple
+>
+
+<div id="files"></div>
+
+<button
+  id="send"
+  class="send"
+  disabled
+>
+  Send Files
+</button>
+
+<div id="status"></div>
+
+<div class="note">
+  Files are sent as actual email attachments.
+  Your mail account password is never placed in this website.
+</div>
+
+</main>
+
+<script>
+
+/* =====================================================
+   GOOGLE APPS SCRIPT WEB APP URL
+   ===================================================== */
+
+const API_URL =
+"https://script.google.com/macros/s/AKfycbzW1dhZqo8Ew8AP6A58F-8BdJnuGZELt9OXicnhHUXnMNE4Tc-aayy-NWTMdRtlveYB/exec";
+
+
+/* =====================================================
+   ELEMENTS
+   ===================================================== */
+
+const email = document.getElementById("email");
+const picker = document.getElementById("picker");
+const list = document.getElementById("files");
+const send = document.getElementById("send");
+const status = document.getElementById("status");
+
+let files = [];
+
+
+/* =====================================================
+   FORMAT FILE SIZE
+   ===================================================== */
+
+function formatSize(bytes){
+
+  if(bytes < 1024){
+    return bytes + " B";
+  }
+
+  if(bytes < 1048576){
+    return (bytes / 1024).toFixed(1) + " KB";
+  }
+
+  return (bytes / 1048576).toFixed(1) + " MB";
+}
+
+
+/* =====================================================
+   ESCAPE FILE NAMES
+   ===================================================== */
+
+function escapeHTML(text){
+
+  return text.replace(/[&<>"']/g,function(character){
+
+    return {
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#39;"
+    }[character];
+
+  });
+
+}
+
+
+/* =====================================================
+   DISPLAY SELECTED FILES
+   ===================================================== */
+
+function redraw(){
+
+  list.innerHTML = files.map(function(file){
+
+    return `
+      <div class="file">
+        <span>
+          📄 ${escapeHTML(file.name)}
+        </span>
+
+        <span>
+          ${formatSize(file.size)}
+        </span>
+      </div>
+    `;
+
+  }).join("");
+
+  send.disabled =
+    !email.value.trim() ||
+    files.length === 0;
+
+}
+
+
+/* =====================================================
+   EMAIL INPUT
+   ===================================================== */
+
+email.addEventListener("input",function(){
+
+  redraw();
+
+});
+
+
+/* =====================================================
+   FILE PICKER
+   ===================================================== */
+
+picker.addEventListener("change",function(){
+
+  files = Array.from(picker.files);
+
+  redraw();
+
+});
+
+
+/* =====================================================
+   CONVERT FILE TO BASE64
+   ===================================================== */
+
+function fileToBase64(file){
+
+  return new Promise(function(resolve,reject){
+
+    const reader = new FileReader();
+
+    reader.onload = function(){
+
+      const result = reader.result;
+
+      const base64 =
+        result.split(",")[1];
+
+      resolve(base64);
+
+    };
+
+    reader.onerror = function(){
+
+      reject(
+        new Error(
+          "Could not read " + file.name
+        )
+      );
+
+    };
+
+    reader.readAsDataURL(file);
+
+  });
+
+}
+
+
+/* =====================================================
+   SEND FILES
+   ===================================================== */
+
+send.addEventListener("click",async function(){
+
+  if(!email.value.trim()){
+
+    status.textContent =
+      "Enter a recipient email.";
+
+    status.style.color =
+      "#b91c1c";
+
+    return;
+
+  }
+
+
+  if(files.length === 0){
+
+    status.textContent =
+      "Choose at least one file.";
+
+    status.style.color =
+      "#b91c1c";
+
+    return;
+
+  }
+
+
+  if(
+    API_URL.includes("PASTE") ||
+    !API_URL.includes("/exec")
+  ){
+
+    status.textContent =
+      "The Apps Script Web App URL is missing.";
+
+    status.style.color =
+      "#b45309";
+
+    return;
+
+  }
+
+
+  send.disabled = true;
+
+  status.textContent =
+    "Preparing files…";
+
+  status.style.color =
+    "#172033";
+
+
+  try{
+
+    let totalSize = 0;
+
+    const attachments = [];
+
+
+    /* ===============================================
+       CONVERT ALL FILES
+       =============================================== */
+
+    for(const file of files){
+
+      totalSize += file.size;
+
+
+      /*
+        Keep the total upload below 20 MB.
+      */
+
+      if(
+        totalSize >
+        20 * 1024 * 1024
+      ){
+
+        throw new Error(
+          "Total attachments must be under 20 MB."
+        );
+
+      }
+
+
+      status.textContent =
+        "Preparing " + file.name + "…";
+
+
+      attachments.push({
+
+        name:file.name,
+
+        type:
+          file.type ||
+          "application/octet-stream",
+
+        data:
+          await fileToBase64(file)
+
+      });
+
+    }
+
+
+    /* ===============================================
+       SEND TO GOOGLE APPS SCRIPT
+       =============================================== */
+
+    status.textContent =
+      "Sending files…";
+
+
+    const response =
+      await fetch(API_URL,{
+
+        method:"POST",
+
+        headers:{
+          "Content-Type":
+            "text/plain;charset=utf-8"
+        },
+
+        body:JSON.stringify({
+
+          to:
+            email.value.trim(),
+
+          files:
+            attachments
+
+        })
+
+      });
+
+
+    if(!response.ok){
+
+      throw new Error(
+        "Server returned HTTP " +
+        response.status
+      );
+
+    }
+
+
+    const result =
+      await response.json();
+
+
+    if(!result.ok){
+
+      throw new Error(
+        result.error ||
+        "The files could not be sent."
+      );
+
+    }
+
+
+    /* ===============================================
+       SUCCESS
+       =============================================== */
+
+    status.textContent =
+      "✓ Files sent successfully!";
+
+    status.style.color =
+      "#15803d";
+
+
+    files = [];
+
+    picker.value = "";
+
+    redraw();
+
+
+  }catch(error){
+
+    console.error(error);
+
+    status.textContent =
+      "✕ " +
+      (
+        error.message ||
+        "Something went wrong."
+      );
+
+    status.style.color =
+      "#b91c1c";
+
+    send.disabled = false;
+
+  }
+
+});
+
+</script>
+
+</body>
+</html>
